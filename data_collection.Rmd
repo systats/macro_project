@@ -1,0 +1,358 @@
+---
+title: "data_collection"
+output: html_notebook
+---
+
+
+```{r setup, include = F}
+knitr::opts_chunk$set(#echo = T # Whether to display code along with its results
+                      eval = F # Whether to evaluate the code and include its results
+                      #, results = "asis" # this at deafult is in end much more efficient
+                      , cache = F # Whether to cache results for future renders (efficient!)
+                      , warning = F # Whether to display errors
+                      , message = F # Whether to display messages
+                      , error = F # mybe turn on
+                      , tidy = F # Whether to reformat code in a tidy way when displaying it
+                      )
+```
+
+
+# Download World Bank Indictors (WDI) Data
+
+```{r list}
+map_wdi <-
+  list(
+  "gdppc" = c(
+    "GDP per capita (current US$)", 
+    "NY.GDP.PCAP.CD"),
+  "gdp_ppp" = c(
+    "GDP per capita, PPP (current international $)",
+    "NY.GDP.PCAP.PP.CD"),
+  "pop_total" = c(
+    "Population, total", 
+    "SP.POP.TOTL"),
+  "pop_dens" = c(
+    "Population density (people per sq. km of land area)",
+    "EN.POP.DNST"),
+  "oil" = c(
+    "Oil rents (% of GDP)", 
+    "NY.GDP.PETR.RT.ZS"),
+  "natural" = c(
+    "Total natural resources rents (% of GDP)", 
+    "NY.GDP.TOTL.RT.ZS"),
+  "health_public" = c(
+      "Health expenditure, public (% of GDP)", 
+      "SH.XPD.PUBL.ZS"),
+  # "health_private" = c(
+  #   "Personally paid for health insurance (% age 15+)", 
+  #   "WP11658.1"),
+  "fertility" = c(
+    "Fertility rate, total (births per woman)", 
+    "SP.DYN.TFRT.IN"),
+  "infl" = c(
+    "Inflation, GDP deflator (annual %)", 
+    "NY.GDP.DEFL.KD.ZG"),
+  "trade" = c(
+    "Trade (% of GDP)", 
+    "NE.TRD.GNFS.ZS"),
+  "military" = c(
+    "Military expenditure (% of GDP)", 
+    "MS.MIL.XPND.GD.ZS"),
+  "suicide" = c(
+    "Death rate, crude (per 1,000 people)", 
+    "SP.DYN.CDRT.IN"),
+  "life_exp" = c(
+    "Life expectancy at birth, total (years)", 
+    "SP.DYN.LE00.IN"),
+  # "pov_gap" = c(
+  #   "Poverty gap at national poverty line (%)", 
+  #   "SI.POV.NAGP"),
+  "mobile_1000" = c(
+    "Mobile phone subscribers (per 1,000 people)",
+    "IT.CEL.SETS.P3"),
+  "internet_fix" = c(
+    "Fixed broadband Internet subscribers", 
+    "IT.NET.BBND")
+  # "internet_1000" = c(
+  #   "Internet users (per 1,000 people)", 
+  #   "IT.NET.USER.P3"),
+  # "no_edu" = c(
+  # "percentage of population (15+), 15-19, total, no education",
+  # "BAR.NOED.1519.ZS")
+)
+```
+
+Basic hash-map functions
+
+```{r}
+### get all varnames list 1
+names(map_wdi)
+systats::getDesc(map_wdi)
+systats::getIndicators(map_wdi)
+systats::getAttributes(map_wdi)
+# map_wdi <- systats::addAttribute(map_wdi, "new", "description","ind")
+# map_wdi <- removeAttribute(map_wdi, 17)
+```
+
+Download WDI data
+
+```{r}
+### download wdi data
+library(WDI)
+library(dplyr)
+
+wdi_data <- WDI(
+    country="all", 
+    indicator = systats::getIndicators(map_wdi),
+    start = 1950, 
+    end = 2015, 
+    extra = T, 
+    cache = NULL
+  ) %>% 
+  tbl_df
+
+names(wdi_data)
+```
+
+override variable names with new vector 
+
+```{r}
+# start at four
+names(wdi_data)[4:(length(map_wdi) + 3)] <- names(map_wdi)
+#summary(wdi_data)
+```
+
+clean counry names
+
+```{r}
+library(countrycode)
+
+c_names <- countrycode(
+  sourcevar = wdi_data$iso2c,
+  origin = "iso2c",
+  destination = "country.name",
+  warn = T
+)
+
+# no problems
+wdi_data$country <- c_names
+```
+
+filter non-countries (oecd regions) and missing values by variable
+
+```{r}
+# filter no countries
+wdi <- wdi_data %>%
+  filter(!is.na(country))
+# table(wdi_new$country)
+```
+
+
+# V-Dem Data
+
+```{r}
+map_vdem <- list(
+"reason" = c(
+  "To what extent do political elites give public and reasoned justifications for their pulicy positions prior to
+  major legislative decisions?", 
+  "v2dlreason"),
+"common" = c(
+  "When important policy changes are being considered, to what extent do political elites justify their positions   in terms of the common good?", 
+  "v2dlcommon"),
+"counter_arg" = c(
+  "When important policy changes are being considered, to what extent do political elites acknowledge and respect
+  counterarguments?",
+  "v2dlcountr"),
+"elite_consul" = c(
+  "When important policy changes are being considered, how wide is the range of consultation at elite level?",
+  "v2dlconslt"),
+"engage_soc" = c(
+  "When important policy changes are being considered, how wide and how independent are public deliberations?",
+  "v2dlengage"),
+"clientelistic" = c(
+  "How particularistic are social and infrastructural spendings in the national budget?",
+  "v2dlencmps"),
+"welfare_working" = c(
+  "How many welfare programs are means-tested and how many benefit all members of the polity?",
+  "v2dlunivl"),
+"pol_kill"= c(
+  "Is there freedom from political killings?",
+  "v2clkill"),
+"free_tort"= c(
+  "Is there freedom from torture?",
+  "v2cltort"),
+"free_disc"= c(
+  "Are citizens able to openly discuss political issues in private homes and in public spaces? ",
+  "v2xcl_disc"),
+"pol_kill"= c(
+  "Is there freedom from political killings?",
+  "v2clkill"),
+"rel_infl" = c(
+  "Are major religious organizations routinely consulted by policymakers on policies relevant to their members?",
+  "v2csrlgcon"),
+"gov_cens" = c(
+  "Does the government directly or indirectly attempt to censor the print or broadcast media?",
+  "v2mecenefm"),
+"equal_edu" = c(
+  "To what extent is high quality basic education guaranteed to all?",
+  "v2peedueq"),
+"equal_health" = c(
+  "To what extent is high quality basic healthcare guaranteed to all?",
+  "v2pehealth"),
+"duration" = c(
+  "How many consecutive years of current regime type?",
+  "e_democracy_duration"),
+"free_polity" = c(
+  "Scale ranges from 0-10 where 0 is least democratic and 10 most democratic.",
+  "e_fh_ipolity2"),
+"pl" = c("Political Rights",
+         "e_fh_pr"),
+"rule_law" = c(
+  "Rule of Law",
+  "e_fh_rol"),
+"corruption" = c(
+  "measures perceptions of corruption, conventionally defined as the exercise of public power for private gain.",
+  "e_wbgi_cce"),
+"gov_effect" = c(
+  "Quality of public service provision, the quality of the bureaucracy, the competence of civil servants, the independence of the civil service from political pressures",
+  "e_wbgi_gee"),
+"pol_stability" = c(
+  "combines several indicators which measure perceptions on the likelihood that the government will stay in power. ","e_wbgi_pse"),
+"regime_bi" =c(
+  "What is the country Regime score?",
+  "e_Regime"),
+"fh_status" = c(
+  "Freedome House Status",
+  "e_fh_status"),
+"pol_rights" = c(
+  "Political Rights Freedom House",
+  "e_fh_pr"),
+"civil_libs" = c(
+  "Civil Liberties Freedom House",
+  "e_fh_cl"),
+"polity_norm" = c(
+  "The Polity index is normalized to run from 0 to 100 by adding 10 and multiplying by five.",
+  "e_polity_s"),
+# "regime_trans" = c(
+#   "A regime change is defined simply as a three-point change in either the polity's democracy or autocracy score and may be either a negative or a positive value change.",
+#  "e_regtrans"),
+"regions" = c(
+  "in which geographic region is the country located?",
+  "e_region_world_2"),
+"gov_debt" =c(
+  "What is the total gross central government debt?",
+  "e_migovdeb"),
+"exports" = c(
+  "What is the total value of a country's exports?",
+  "e_cow_exports"),
+"imports" = c(
+  "What is the total value of a country's imports? ",
+  "e_cow_imports"),
+"gini_income" = c(
+  "What is the inequality of household incomes (Gini)?",
+  "e_Unequal_UTIP"),
+"conflict_int" = c(
+  "Did the country participate in an international armed conflict?",
+  "e_miinteco"),
+"conflict_dom" = c(
+  "Did the country experience an internal armed conflict?",
+  "e_miinterc"),
+"civil_war" = c(
+  "Was there a civil war?",
+  "e_Civil_War")
+)
+```
+
+```{r}
+#dir()
+load("vdem_all.Rdata")
+
+library(systats)
+vdem2 <- vdem1[,c("country_name","year","country_text_id", getIndicators(map_vdem))]
+names(vdem2) <- c("country", "year", "iso3c", names(map_vdem))
+vdem <- vdem2
+```
+
+
+```{r}
+c_names <- countrycode(sourcevar = vdem$iso3c,
+                       origin = "iso3c", 
+                       destination = "country.name", 
+                       warn = T)
+
+vdem$country <- c_names
+vdem$iso3c <- NULL
+```
+
+
+```{r, fig.height = 11}
+### merge data
+#names(wdi)
+#names(vdem)
+
+project_macro <- inner_join(wdi, vdem, by = c("country", "year"))
+#final <- merge(wdi_new, vdem, by = c("country","year"))
+map_macro <- c(map_wdi, map_vdem)
+
+library(ggplot2)
+
+project_macro %>%
+  group_by(country)%>%
+  tally %>%
+  filter(n < 53 | country %in% c("Bangladesh", "Albania", "Angola")) %>%
+  arrange(n) %>%
+  #mutate(country_id = 1:n()) %>%
+  mutate(country = factor(country, levels = country)) %>%
+    ggplot(aes(country, n, fill = n)) + 
+    geom_bar(stat = "identity", alpha = .5) +
+    theme(axis.text.x = element_text(angle = 45))
+```
+
+```{r, fig.height = 20, fig.width=10}
+library(dplyr)
+na_matrix <- project_macro %>% 
+  is.na %>% 
+  ifelse(., "1", "0") %>% 
+  as.data.frame %>%
+  mutate_each(funs(factor(.)))
+
+sjPlot::sjp.stackfrq(na_matrix, 
+             expand.grid = TRUE, 
+             legend.labels = c("Beobachted","Fehlend"),
+             sort.frq = "first.asc",
+             prnt.plot = F)$plot + theme(legend.position = "top")
+```
+
+
+```{r}
+save(project_macro, file = "project_macro.Rdata")
+save(map_macro, file = "map_macro")
+```
+
+
+```{r, fig.height = 20, fig.width=10}
+project_macro$pol_kill.y <- NULL
+project_macro$iso3c.x <- NULL
+#glimpse(project_macro)
+
+library(tidyr)
+project_macro %>%
+  gather("var", "value",-iso2c, -country, -year, -iso3c, -region) %>%
+  filter(!is.na(value)) %>%
+  group_by(year, var) %>%
+  tally() %>%
+  ggplot(aes(year, n, fill = n)) +
+  geom_line() +
+  facet_wrap( ~ var, ncol = 3)
+
+```
+
+
+[dataMaid Github](https://github.com/ekstroem/dataMaid)
+
+```{r, eval = F}
+# devtools::install_github("ekstroem/dataMaid")
+library(dataMaid)
+check(project_macro) # Check all variables at once
+clean(project_macro) # Check all variables at once
+```
